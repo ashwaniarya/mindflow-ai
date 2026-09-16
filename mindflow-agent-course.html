@@ -1,0 +1,839 @@
+<title>Build the MindFlow Agent</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --ground: #f3f5f8;
+    --surface: #ffffff;
+    --surface-2: #e9edf3;
+    --ink: #101828;
+    --ink-2: #3f4a5c;
+    --ink-3: #6b7689;
+    --line: #d5dbe5;
+    --accent: #0f766e;
+    --accent-soft: #d7efe9;
+    --edge: #6d5bd0;
+    --edge-soft: #e6e1fa;
+    --warn: #b45309;
+    --warn-soft: #fbe9d0;
+    --code-bg: #0f1419;
+    --code-ink: #e7ecf3;
+    --code-accent: #7dd3c8;
+    --focus: #6d5bd0;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #0f1419; --surface: #171d26; --surface-2: #1f2733; --ink: #e7ecf3; --ink-2: #b7c0cd; --ink-3: #8592a5;
+      --line: #2b3441; --accent: #5fd3c3; --accent-soft: #123a36; --edge: #a89cf0; --edge-soft: #2a2450;
+      --warn: #f0b35d; --warn-soft: #3d2a10; --code-bg: #0a0e13; --code-ink: #e7ecf3; --code-accent: #7dd3c8; --focus: #a89cf0; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #0f1419; --surface: #171d26; --surface-2: #1f2733; --ink: #e7ecf3; --ink-2: #b7c0cd; --ink-3: #8592a5;
+    --line: #2b3441; --accent: #5fd3c3; --accent-soft: #123a36; --edge: #a89cf0; --edge-soft: #2a2450;
+    --warn: #f0b35d; --warn-soft: #3d2a10; --code-bg: #0a0e13; --code-ink: #e7ecf3; --code-accent: #7dd3c8; --focus: #a89cf0; color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--ground); color: var(--ink); font-family: "Atkinson Hyperlegible", "Helvetica Neue", Arial, sans-serif; font-size: 17px; line-height: 1.55; }
+  a { color: var(--accent); }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  code, pre, kbd { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
+  h1, h2, h3 { font-family: Sora, "Atkinson Hyperlegible", sans-serif; text-wrap: balance; line-height: 1.15; margin: 0; }
+  h1 { font-size: clamp(1.9rem, 4vw, 2.6rem); font-weight: 700; letter-spacing: -0.02em; }
+  h2 { font-size: 1.55rem; font-weight: 600; letter-spacing: -0.01em; }
+  h3 { font-size: 1.1rem; font-weight: 600; }
+  p { margin: 0; max-width: 66ch; }
+  ul, ol { margin: 0; padding-left: 1.3em; max-width: 66ch; }
+  li + li { margin-top: 0.35em; }
+
+  .shell { display: grid; grid-template-columns: 260px minmax(0, 1fr); min-height: 100%; }
+  .rail { border-right: 1px solid var(--line); background: var(--surface); padding-block: 24px; padding-inline: 20px; position: sticky; top: env(safe-area-inset-top, 0px); height: 100vh; overflow-y: auto; }
+  .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 22px; }
+  .brand .mark { width: 28px; height: 28px; border-radius: 6px; background: var(--ink); position: relative; flex: none; }
+  .brand .mark::after { content: ""; position: absolute; inset: 9px; border-radius: 3px; background: var(--accent); }
+  .brand b { font-family: Sora, sans-serif; font-size: 0.95rem; }
+  .eyebrow { font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-3); font-weight: 700; }
+  .nav { list-style: none; padding: 0; margin: 10px 0 0; display: grid; gap: 2px; }
+  .nav a { display: grid; grid-template-columns: 22px 1fr; gap: 8px; align-items: center; padding: 8px 8px; border-radius: 6px; color: var(--ink-2); text-decoration: none; font-size: 0.92rem; }
+  .nav a:hover { background: var(--surface-2); color: var(--ink); }
+  .nav a.active { background: var(--accent-soft); color: var(--ink); }
+  .nav .tick { width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--line); display: grid; place-items: center; font-size: 0.7rem; color: var(--surface); }
+  .nav a.done .tick { background: var(--accent); border-color: var(--accent); }
+  .nav a.done .tick::after { content: "✓"; }
+  .progress { margin-top: 18px; font-size: 0.82rem; color: var(--ink-3); }
+  .progress .bar { height: 6px; background: var(--surface-2); border-radius: 3px; overflow: hidden; margin-top: 6px; }
+  .progress .bar i { display: block; height: 100%; background: var(--accent); width: 0; transition: width 300ms; }
+
+  main { padding-block: 32px 80px; padding-inline: clamp(16px, 5vw, 64px); }
+  .lesson { max-width: 820px; display: none; }
+  .lesson.active { display: block; }
+  .lesson > * + * { margin-top: 22px; }
+  .lesson-head { display: grid; gap: 10px; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
+  .lesson-head .meta { display: flex; gap: 14px; flex-wrap: wrap; font-size: 0.85rem; color: var(--ink-3); }
+  .goal { border-left: 3px solid var(--accent); padding: 10px 16px; background: var(--surface); border-radius: 0 8px 8px 0; }
+  .goal b { color: var(--accent); }
+  .term { border-bottom: 1.5px dotted var(--edge); cursor: help; }
+  .note { background: var(--edge-soft); border-radius: 8px; padding: 12px 16px; font-size: 0.95rem; max-width: 66ch; }
+  .trap { background: var(--warn-soft); border-radius: 8px; padding: 12px 16px; font-size: 0.95rem; max-width: 66ch; }
+  .trap b { color: var(--warn); }
+  pre { background: var(--code-bg); color: var(--code-ink); border-radius: 10px; padding: 16px 18px; font-size: 0.84rem; line-height: 1.5; overflow-x: auto; max-width: 100%; }
+  pre .k { color: var(--code-accent); }
+  pre .c { color: #8592a5; font-style: italic; }
+  .file { font-size: 0.78rem; color: var(--ink-3); margin-bottom: -14px; font-family: "JetBrains Mono", monospace; }
+  figure { margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; overflow-x: auto; }
+  figure svg { display: block; max-width: 100%; height: auto; }
+  figcaption { font-size: 0.85rem; color: var(--ink-3); margin-top: 8px; }
+  .steps { counter-reset: step; list-style: none; padding: 0; display: grid; gap: 10px; }
+  .steps li { display: grid; grid-template-columns: 30px 1fr; gap: 12px; align-items: start; }
+  .steps li::before { counter-increment: step; content: counter(step); width: 26px; height: 26px; border-radius: 50%; background: var(--ink); color: var(--surface); font-family: Sora, sans-serif; font-size: 0.8rem; font-weight: 600; display: grid; place-items: center; margin-top: 2px; }
+  .try { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; }
+  .try h3 { display: flex; align-items: center; gap: 8px; }
+  .try h3::before { content: ""; width: 10px; height: 10px; border-radius: 2px; background: var(--edge); }
+
+  .quiz { display: grid; gap: 14px; }
+  .q { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+  .q p { font-weight: 700; }
+  .q .opts { display: grid; gap: 6px; margin-top: 10px; }
+  .q button { text-align: left; font: inherit; font-size: 0.95rem; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--ground); color: var(--ink); cursor: pointer; }
+  .q button:hover { border-color: var(--ink-3); }
+  .q button.right { border-color: var(--accent); background: var(--accent-soft); }
+  .q button.wrong { border-color: var(--warn); background: var(--warn-soft); }
+  .q .why { margin-top: 10px; font-size: 0.92rem; color: var(--ink-2); }
+  .q .why[hidden] { display: none; }
+
+  .ask { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
+  .ask h3 { display: flex; align-items: center; gap: 8px; }
+  .ask h3::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
+  .ask .row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .ask textarea { flex: 1 1 320px; min-height: 64px; font: inherit; font-size: 0.95rem; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--ground); color: var(--ink); resize: vertical; }
+  .btn { font: inherit; font-size: 0.9rem; font-weight: 700; padding: 10px 16px; border-radius: 8px; border: 1px solid transparent; background: var(--ink); color: var(--surface); cursor: pointer; }
+  .btn.ghost { background: transparent; color: var(--ink); border-color: var(--line); }
+  .btn:disabled { opacity: 0.5; cursor: default; }
+  .answer { margin-top: 12px; white-space: pre-wrap; font-size: 0.95rem; color: var(--ink-2); border-top: 1px solid var(--line); padding-top: 12px; }
+  .answer:empty { display: none; }
+  .ask .hint { font-size: 0.82rem; color: var(--ink-3); margin-top: 8px; }
+  .ask[data-state="off"] { display: none; }
+
+  .foot { display: flex; justify-content: space-between; gap: 12px; padding-top: 22px; border-top: 1px solid var(--line); flex-wrap: wrap; }
+  .foot .btn.done { background: var(--accent); color: #062b27; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+  .card b { display: block; font-family: Sora, sans-serif; font-size: 0.95rem; margin-bottom: 4px; }
+  .card span { font-size: 0.9rem; color: var(--ink-2); }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip { font-size: 0.8rem; padding: 4px 10px; border-radius: 999px; background: var(--surface-2); color: var(--ink-2); }
+  table { border-collapse: collapse; font-size: 0.92rem; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
+  .tablewrap { overflow-x: auto; max-width: 100%; }
+
+  .topbar { display: none; }
+  @media (max-width: 860px) {
+    .shell { grid-template-columns: 1fr; }
+    .rail { display: none; }
+    .topbar { display: block; position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--surface); border-bottom: 1px solid var(--line); padding-block: 10px; padding-inline: 16px; }
+    .topbar select { width: 100%; font: inherit; font-size: 0.95rem; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--ground); color: var(--ink); }
+    main { padding-inline: 16px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .progress .bar i { transition: none; } }
+</style>
+
+<div class="topbar">
+  <label class="eyebrow" for="jump">Lesson</label>
+  <select id="jump"></select>
+</div>
+
+<div class="shell">
+  <aside class="rail">
+    <div class="brand"><span class="mark"></span><b>Build the MindFlow Agent</b></div>
+    <div class="eyebrow">Lessons</div>
+    <ul class="nav" id="nav"></ul>
+    <div class="progress"><span id="progress-label">0 of 8 done</span><div class="bar"><i id="progress-bar"></i></div></div>
+  </aside>
+
+  <main id="main">
+
+  <!-- ================= LESSON 0 ================= -->
+  <section class="lesson" data-id="0" data-title="Orientation">
+    <div class="lesson-head">
+      <span class="eyebrow">Lesson 0 · 6 min</span>
+      <h1>From a blank canvas to an agent that builds mind maps</h1>
+      <p>You already shipped MindFlow. This course walks back through it, from the first model call to the ReAct loop that runs at <a href="https://mindflow-ai-sepia.vercel.app" target="_blank" rel="noopener">mindflow-ai-sepia.vercel.app</a>, so you can explain every line in an interview and rebuild it from memory.</p>
+      <div class="meta"><span>Stack: React 19 · React Flow · LangGraph.js · @google/genai</span><span>Source: ~/p/demos/mindflow-ai</span></div>
+    </div>
+
+    <div class="goal"><b>How to use this page.</b> Read a lesson, run the "Try it" step in the real project, answer the quiz, then ask anything in the box at the bottom. The box sends the lesson text to Claude with your question, so ask about the code in front of you, not about the world.</div>
+
+    <h2>What we are building, in one picture</h2>
+    <figure>
+      <svg viewBox="0 0 720 200" xmlns="http://www.w3.org/2000/svg" font-family="Atkinson Hyperlegible, sans-serif" font-size="13">
+        <defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--ink-3)"/></marker></defs>
+        <rect x="16" y="70" width="130" height="56" rx="8" fill="var(--surface-2)" stroke="var(--line)"/>
+        <text x="81" y="94" text-anchor="middle" fill="var(--ink)" font-weight="700">Composer</text>
+        <text x="81" y="112" text-anchor="middle" fill="var(--ink-3)">"map SEO visibility"</text>
+        <rect x="216" y="30" width="150" height="56" rx="8" fill="var(--accent-soft)" stroke="var(--accent)"/>
+        <text x="291" y="54" text-anchor="middle" fill="var(--ink)" font-weight="700">agent node</text>
+        <text x="291" y="72" text-anchor="middle" fill="var(--ink-3)">reason, pick a tool</text>
+        <rect x="216" y="116" width="150" height="56" rx="8" fill="var(--edge-soft)" stroke="var(--edge)"/>
+        <text x="291" y="140" text-anchor="middle" fill="var(--ink)" font-weight="700">tools node</text>
+        <text x="291" y="158" text-anchor="middle" fill="var(--ink-3)">act on the map</text>
+        <rect x="446" y="70" width="130" height="56" rx="8" fill="var(--surface-2)" stroke="var(--line)"/>
+        <text x="511" y="94" text-anchor="middle" fill="var(--ink)" font-weight="700">React Flow</text>
+        <text x="511" y="112" text-anchor="middle" fill="var(--ink-3)">nodes stream in</text>
+        <rect x="606" y="70" width="98" height="56" rx="8" fill="var(--surface-2)" stroke="var(--line)"/>
+        <text x="655" y="94" text-anchor="middle" fill="var(--ink)" font-weight="700">History</text>
+        <text x="655" y="112" text-anchor="middle" fill="var(--ink-3)">saved map</text>
+        <path d="M146,98 L216,66" stroke="var(--ink-3)" fill="none" marker-end="url(#arr)"/>
+        <path d="M291,86 L291,116" stroke="var(--ink-3)" fill="none" marker-end="url(#arr)"/>
+        <path d="M366,144 C400,144 400,58 366,58" stroke="var(--edge)" fill="none" marker-end="url(#arr)"/>
+        <text x="412" y="106" fill="var(--edge)" font-size="12">loop until done</text>
+        <path d="M366,58 L446,90" stroke="var(--ink-3)" fill="none" marker-end="url(#arr)"/>
+        <path d="M576,98 L606,98" stroke="var(--ink-3)" fill="none" marker-end="url(#arr)"/>
+      </svg>
+      <figcaption>The loop between agent and tools is the whole difference between a pipeline and an agent. Lesson 4 is about that arrow.</figcaption>
+    </figure>
+
+    <h2>The path</h2>
+    <div class="cards">
+      <div class="card"><b>1 · One model call</b><span>Prompt in, text out. Then JSON out. Why that alone is not an agent.</span></div>
+      <div class="card"><b>2 · Graphs and state</b><span>LangGraph nodes, edges, reducers, streaming. Rebuild the old two-step pipeline.</span></div>
+      <div class="card"><b>3 · Tools</b><span>Function declarations. The map becomes the tool surface.</span></div>
+      <div class="card"><b>4 · The ReAct loop</b><span>Conditional edge, cycle, step budget, guards.</span></div>
+      <div class="card"><b>5 · Demo mode</b><span>A scripted planner that emits the same tool calls without a key.</span></div>
+      <div class="card"><b>6 · Canvas</b><span>Streaming into React Flow, extend a selection, predicted colours, Smart Align.</span></div>
+      <div class="card"><b>7 · Ship and defend</b><span>Build, deploy, verify. What to say in the interview.</span></div>
+    </div>
+
+    <div class="try">
+      <h3>Try it before lesson 1</h3>
+      <ol class="steps">
+        <li>Open the project: <code>cd ~/p/demos/mindflow-ai &amp;&amp; npx vite --port 5180</code></li>
+        <li>Type "Pixel colour change via sound waves" in the composer. Watch the status pill: it prints <code>Reason:</code> and <code>Act:</code> lines in turn. That alternation is what you are about to learn.</li>
+        <li>Open <code>services/reactAgent.ts</code> next to this page. Every lesson points at a line in it.</li>
+      </ol>
+    </div>
+
+    <div class="ask" data-lesson="0">
+      <h3>Ask about this lesson</h3>
+      <div class="row"><textarea id="ask-0" placeholder="Example: what should I already know before starting?"></textarea><div style="display:grid;gap:6px"><button class="btn" data-ask>Ask</button><button class="btn ghost" data-stop hidden>Stop</button></div></div>
+      <div class="answer" id="answer-0"></div>
+      <div class="hint">Answers use your Claude account. The first question asks for permission.</div>
+    </div>
+
+    <div class="foot"><span></span><button class="btn done" data-done>Mark done, next lesson</button></div>
+  </section>
+
+  <!-- ================= LESSON 1 ================= -->
+  <section class="lesson" data-id="1" data-title="One model call">
+    <div class="lesson-head">
+      <span class="eyebrow">Lesson 1 · 12 min</span>
+      <h1>One model call, then structured output</h1>
+      <p>Everything an agent does is made of single model calls. Get the shape of one call exact, and the rest is plumbing.</p>
+    </div>
+
+    <div class="goal"><b>Goal.</b> Make one call to Gemini from the browser, then force the answer into JSON you can trust.</div>
+
+    <h2>The call</h2>
+    <p>A <span class="term" title="A request to a language model: some text in, some text out. Nothing is remembered between calls.">model call</span> is a function. Text goes in, text comes out, and the model remembers nothing afterwards. MindFlow uses the <code>@google/genai</code> SDK. This is the smallest useful call in the project:</p>
+    <div class="file">services/geminiService.ts</div>
+<pre><span class="k">const</span> ai = <span class="k">new</span> GoogleGenAI({ apiKey });
+
+<span class="k">const</span> response = <span class="k">await</span> ai.models.generateContent({
+  model: <span class="k">"gemini-3-flash-preview"</span>,
+  contents: `Generate 4 concise sub-topics for the mind map node: "${topic}".`,
+});
+console.log(response.text);   <span class="c">// free-form prose. Useless to a program.</span></pre>
+
+    <h2>Structured output</h2>
+    <p>Prose is fine for a human and useless for code. Ask for JSON and give the SDK a <span class="term" title="A description of the exact JSON shape you want back: object keys, types, required fields. The API steers the model to match it.">response schema</span>, and you get an array you can loop over:</p>
+<pre><span class="k">const</span> response = <span class="k">await</span> ai.models.generateContent({
+  model: <span class="k">"gemini-3-flash-preview"</span>,
+  contents: `Generate 4 concise sub-topics for: "${topic}". Keep them 1-3 words.`,
+  config: {
+    responseMimeType: <span class="k">"application/json"</span>,
+    responseSchema: { type: Type.ARRAY, items: { type: Type.STRING } },
+  },
+});
+<span class="k">const</span> subTopics = JSON.parse(response.text || <span class="k">"[]"</span>);</pre>
+
+    <div class="note">Structured output is the foundation of every "AI feature" that looks like magic in a product: a schema plus a parse. The generation is the easy part. The contract is the work.</div>
+
+    <h2>Why this is not an agent yet</h2>
+    <p>The call has no way to look at the map, no way to decide what to do next, and no way to act twice. It answers once. Chain two of these calls and you have a <span class="term" title="A fixed sequence of steps. Step 2 always follows step 1, whatever step 1 produced.">pipeline</span>. That is what MindFlow was before this week: draft branches, then expand them, always in that order. Useful, honest, and not an agent.</p>
+
+    <div class="trap"><b>Trap.</b> The key is inlined into the browser bundle by Vite's <code>define</code>. Anyone can read it from the deployed JS. That is why the public demo ships without a key and why lesson 5 exists.</div>
+
+    <div class="try">
+      <h3>Try it</h3>
+      <ol class="steps">
+        <li>Create <code>.env.local</code> with <code>GEMINI_API_KEY=...</code> and restart Vite.</li>
+        <li>Right-click a node, choose "Expand with AI". That path calls <code>generateSubTopics</code>. Compare the labels with demo mode.</li>
+        <li>Break the schema on purpose: change <code>Type.ARRAY</code> to <code>Type.OBJECT</code>. Watch what <code>JSON.parse</code> gives you. Put it back.</li>
+      </ol>
+    </div>
+
+    <div class="quiz">
+      <div class="q" data-answer="1"><p>What does the model keep between two <code>generateContent</code> calls?</p><div class="opts"><button>The last prompt only</button><button>Nothing</button><button>The last 10 turns</button></div><div class="why" hidden>Nothing. Any memory is something your code passes back in on the next call. Lesson 3 builds exactly that.</div></div>
+      <div class="q" data-answer="2"><p>Why ask for a response schema?</p><div class="opts"><button>It makes the model smarter</button><button>It is faster</button><button>It makes the output parseable by code</button></div><div class="why" hidden>The model is the same. The schema turns prose into data your program can rely on.</div></div>
+    </div>
+
+    <div class="ask" data-lesson="1">
+      <h3>Ask about this lesson</h3>
+      <div class="row"><textarea id="ask-1" placeholder="Example: what happens if the model ignores the schema?"></textarea><div style="display:grid;gap:6px"><button class="btn" data-ask>Ask</button><button class="btn ghost" data-stop hidden>Stop</button></div></div>
+      <div class="answer" id="answer-1"></div>
+      <div class="hint">Answers use your Claude account.</div>
+    </div>
+
+    <div class="foot"><button class="btn ghost" data-prev>Previous</button><button class="btn done" data-done>Mark done, next lesson</button></div>
+  </section>
+
+  <!-- ================= LESSON 2 ================= -->
+  <section class="lesson" data-id="2" data-title="Graphs and state">
+    <div class="lesson-head">
+      <span class="eyebrow">Lesson 2 · 15 min</span>
+      <h1>LangGraph: state, nodes, edges, streaming</h1>
+      <p>LangGraph is a small idea with a big payoff: your program is a graph, and a typed state object flows through it.</p>
+    </div>
+
+    <div class="goal"><b>Goal.</b> Rebuild the original two-step pipeline as a LangGraph graph and stream its steps to the console.</div>
+
+    <h2>Four words</h2>
+    <div class="tablewrap"><table>
+      <tr><th>Word</th><th>Meaning</th><th>In MindFlow</th></tr>
+      <tr><td><b>State</b></td><td>One object every step reads and writes. Declared with <code>Annotation.Root</code>.</td><td><code>topic, nodes, edges, history, pendingCalls, log, steps</code></td></tr>
+      <tr><td><b>Reducer</b></td><td>How a step's output merges into state. Concat, overwrite, or custom.</td><td><code>log</code> concats, <code>nodes</code> overwrites</td></tr>
+      <tr><td><b>Node</b></td><td>A function: state in, partial state out.</td><td><code>agent</code>, <code>tools</code></td></tr>
+      <tr><td><b>Edge</b></td><td>What runs next. Fixed, or conditional on state.</td><td><code>tools → agent</code> always; <code>agent → tools | END</code> decided by a function</td></tr>
+    </table></div>
+
+    <h2>Declaring state</h2>
+    <p>Each field says how updates merge. This is the part people skip and then wonder why nodes disappear.</p>
+    <div class="file">services/reactAgent.ts</div>
+<pre><span class="k">export const</span> AgentState = Annotation.Root({
+  topic: Annotation&lt;string&gt;(),
+  nodes: Annotation&lt;MindMapNode[]&gt;({ reducer: (_s, u) =&gt; u, default: () =&gt; [] }),   <span class="c">// overwrite</span>
+  edges: Annotation&lt;Edge[]&gt;({ reducer: (_s, u) =&gt; u, default: () =&gt; [] }),
+  history: Annotation&lt;Content[]&gt;({ reducer: (s, u) =&gt; s.concat(u), default: () =&gt; [] }), <span class="c">// append</span>
+  pendingCalls: Annotation&lt;ToolCall[]&gt;({ reducer: (_s, u) =&gt; u, default: () =&gt; [] }),
+  log: Annotation&lt;string[]&gt;({ reducer: (s, u) =&gt; s.concat(u), default: () =&gt; [] }),
+  steps: Annotation&lt;number&gt;({ reducer: (_s, u) =&gt; u, default: () =&gt; 0 }),
+});</pre>
+
+    <h2>The pipeline version, for contrast</h2>
+    <p>This is the graph MindFlow shipped with originally. Two nodes, a straight line. Read it once so the loop in lesson 4 feels like the small change it is.</p>
+<pre><span class="k">const</span> workflow = <span class="k">new</span> StateGraph(GraphState)
+  .addNode(<span class="k">"draftInitial"</span>, draftInitial)   <span class="c">// one model call: root + branches</span>
+  .addNode(<span class="k">"expandLeaves"</span>, expandLeaves)   <span class="c">// one model call: sub-topics for every branch</span>
+  .addEdge(START, <span class="k">"draftInitial"</span>)
+  .addEdge(<span class="k">"draftInitial"</span>, <span class="k">"expandLeaves"</span>)
+  .addEdge(<span class="k">"expandLeaves"</span>, END);
+<span class="k">export const</span> mindMapAgent = workflow.compile();</pre>
+
+    <h2>Streaming</h2>
+    <p><code>stream()</code> yields once per completed node, as an object keyed by the node's name. The UI does not wait for the whole graph. It paints after every step.</p>
+<pre><span class="k">const</span> stream = <span class="k">await</span> graph.stream({ topic });
+<span class="k">for await</span> (<span class="k">const</span> chunk <span class="k">of</span> stream) {
+  <span class="c">// chunk = { agent: {...partial state} }  or  { tools: {...partial state} }</span>
+  <span class="k">for</span> (<span class="k">const</span> [nodeName, output] <span class="k">of</span> Object.entries(chunk)) paint(output);
+}</pre>
+
+    <div class="note">A reducer is a design decision, not boilerplate. <code>nodes</code> overwrites because the tools step returns the whole map. <code>log</code> concats because reasoning lines are a transcript. Pick the wrong one and you either lose nodes or duplicate them.</div>
+
+    <div class="try">
+      <h3>Try it</h3>
+      <ol class="steps">
+        <li>The retired pipeline file is gone from the project, and there is no repo to recover it from. Use the snippet above instead: count its nodes and edges, then count them in <code>reactAgent.ts</code>. The whole difference is one conditional edge and one cycle.</li>
+        <li>In <code>reactAgent.ts</code>, change the <code>log</code> reducer to overwrite (<code>(_s, u) =&gt; u</code>). Run a generation. The status pill still works, but <code>state.log</code> now holds one line. Put it back.</li>
+        <li>Add <code>console.log(Object.keys(chunk))</code> inside the stream loop in <code>MindMap.tsx</code>. Watch the alternation: agent, tools, agent, tools.</li>
+      </ol>
+    </div>
+
+    <div class="quiz">
+      <div class="q" data-answer="0"><p>Which reducer should <code>nodes</code> use if the tools step returns the full map every time?</p><div class="opts"><button>Overwrite</button><button>Concat</button><button>Either, it does not matter</button></div><div class="why" hidden>Overwrite. Concat would duplicate every node on every step and the canvas would have to dedupe.</div></div>
+      <div class="q" data-answer="1"><p>What does one iteration of <code>for await (const chunk of stream)</code> represent?</p><div class="opts"><button>One model token</button><button>One completed graph node</button><button>The finished graph</button></div><div class="why" hidden>One completed node. That is the granularity the canvas repaints at.</div></div>
+    </div>
+
+    <div class="ask" data-lesson="2">
+      <h3>Ask about this lesson</h3>
+      <div class="row"><textarea id="ask-2" placeholder="Example: when would I want a custom reducer?"></textarea><div style="display:grid;gap:6px"><button class="btn" data-ask>Ask</button><button class="btn ghost" data-stop hidden>Stop</button></div></div>
+      <div class="answer" id="answer-2"></div>
+      <div class="hint">Answers use your Claude account.</div>
+    </div>
+
+    <div class="foot"><button class="btn ghost" data-prev>Previous</button><button class="btn done" data-done>Mark done, next lesson</button></div>
+  </section>
+
+  <!-- ================= LESSON 3 ================= -->
+  <section class="lesson" data-id="3" data-title="Tools">
+    <div class="lesson-head">
+      <span class="eyebrow">Lesson 3 · 15 min</span>
+      <h1>Tools: the map is the tool surface</h1>
+      <p>A tool is a function the model can ask for by name. Your code runs it and sends the result back. That round trip is the atom of every agent.</p>
+    </div>
+
+    <div class="goal"><b>Goal.</b> Declare four tools, execute a call the model makes, and feed the result back into the conversation.</div>
+
+    <h2>The round trip</h2>
+    <figure>
+      <svg viewBox="0 0 720 230" xmlns="http://www.w3.org/2000/svg" font-family="Atkinson Hyperlegible, sans-serif" font-size="13">
+        <defs><marker id="arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--ink-3)"/></marker></defs>
+        <text x="120" y="24" text-anchor="middle" fill="var(--ink)" font-weight="700">your code</text>
+        <text x="360" y="24" text-anchor="middle" fill="var(--ink)" font-weight="700">model</text>
+        <text x="600" y="24" text-anchor="middle" fill="var(--ink)" font-weight="700">the map</text>
+        <line x1="120" y1="34" x2="120" y2="220" stroke="var(--line)"/><line x1="360" y1="34" x2="360" y2="220" stroke="var(--line)"/><line x1="600" y1="34" x2="600" y2="220" stroke="var(--line)"/>
+        <path d="M120,60 L360,60" stroke="var(--ink-3)" fill="none" marker-end="url(#arr2)"/><text x="240" y="54" text-anchor="middle" fill="var(--ink-2)">history + tool declarations</text>
+        <path d="M360,96 L120,96" stroke="var(--accent)" fill="none" marker-end="url(#arr2)"/><text x="240" y="90" text-anchor="middle" fill="var(--accent)">functionCall: expand({branch_label, subtopics})</text>
+        <path d="M120,132 L600,132" stroke="var(--edge)" fill="none" marker-end="url(#arr2)"/><text x="360" y="126" text-anchor="middle" fill="var(--edge)">runTool mutates nodes and edges</text>
+        <path d="M600,168 L120,168" stroke="var(--edge)" fill="none" marker-end="url(#arr2)"/><text x="360" y="162" text-anchor="middle" fill="var(--edge)">result: "Expanded X with 3 sub-topics"</text>
+        <path d="M120,204 L360,204" stroke="var(--ink-3)" fill="none" marker-end="url(#arr2)"/><text x="240" y="198" text-anchor="middle" fill="var(--ink-2)">functionResponse appended to history</text>
+      </svg>
+      <figcaption>The model never touches the map. It asks. Your code decides, acts, and reports back. That boundary is also your safety line.</figcaption>
+    </figure>
+
+    <h2>Declaring a tool</h2>
+    <p>A <span class="term" title="A name, a description, and a JSON schema for the arguments. It is everything the model knows about the tool; it never sees your code.">function declaration</span> is a contract written for the model. Write the description like documentation for a sharp junior: what it does, what it returns, when to use it.</p>
+    <div class="file">services/reactAgent.ts</div>
+<pre>{
+  name: <span class="k">'expand'</span>,
+  description: <span class="k">'Add 2 to 4 short sub-topics under an existing branch.'</span>,
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      branch_label: { type: Type.STRING },
+      subtopics: { type: Type.ARRAY, items: { type: Type.STRING } },
+    },
+    required: [<span class="k">'branch_label'</span>, <span class="k">'subtopics'</span>],
+  },
+}</pre>
+
+    <h2>Executing a call</h2>
+    <p>The model returns <code>functionCalls</code>. Your code matches on the name, runs real logic against real state, and returns a short string. Short matters: the result goes back into the prompt on every later round.</p>
+<pre><span class="k">case</span> <span class="k">'expand'</span>: {
+  <span class="k">const</span> parent = findNode(nodes, String(args.branch_label ?? <span class="k">''</span>));
+  <span class="k">if</span> (!parent) <span class="k">return</span> { nodes, edges, result: `No node matches "${args.branch_label}". ${summarize(nodes, edges)}` };
+  subtopics.forEach((label, index) =&gt; {
+    <span class="k">const</span> id = getId();
+    nodes.push({ id, type: <span class="k">'custom'</span>, position: {...}, data: { label, color: parent.data.color } });
+    edges.push({ id: `e-${parent.id}-${id}`, source: parent.id, target: id, ... });
+  });
+  <span class="k">return</span> { nodes, edges, result: `Expanded "${plain(parent.data.label)}" with ${subtopics.length} sub-topics.` };
+}</pre>
+
+    <div class="note">Notice the failure case returns a helpful message plus a map summary, and does not throw. The model reads "No node matches" and corrects itself on the next round. A thrown error would end the loop.</div>
+
+    <h2>Closing the loop on memory</h2>
+    <p>Lesson 1 said the model remembers nothing. Tools are where that bites. After executing, you append a <code>functionResponse</code> turn to <code>history</code> so the next call sees what happened:</p>
+<pre>responses.push({ role: <span class="k">'user'</span>, parts: [{ functionResponse: { name: call.name, response: { result: outcome.result } } }] });</pre>
+
+    <div class="trap"><b>Design rule.</b> Four tools, small results, one summary tool. Every extra tool is a way for the model to be wrong; every long result is tokens re-read on every round. <code>inspect_map</code> returns branch names and child counts, never full labels or positions.</div>
+
+    <div class="try">
+      <h3>Try it</h3>
+      <ol class="steps">
+        <li>Add a fifth tool, <code>remove_branch({label})</code>. Declare it, handle it in <code>runTool</code>, and return a one-line result.</li>
+        <li>Make <code>summarize</code> return every node's position too. Generate once with a key and watch the prompt size in the console. Then revert.</li>
+        <li>Rename <code>expand</code>'s description to something vague like "does stuff". Generate three maps. Count how often the model calls it wrongly.</li>
+      </ol>
+    </div>
+
+    <div class="quiz">
+      <div class="q" data-answer="2"><p>What does the model see about a tool?</p><div class="opts"><button>Its source code</button><button>Its test results</button><button>Name, description, and argument schema</button></div><div class="why" hidden>Only the declaration. The description is the whole interface. Write it like docs.</div></div>
+      <div class="q" data-answer="0"><p>A tool call fails because the branch label does not exist. Best response?</p><div class="opts"><button>Return a message plus a map summary</button><button>Throw and stop the loop</button><button>Silently ignore it</button></div><div class="why" hidden>Return context. The next reasoning step reads it and self-corrects. Throwing ends the graph; ignoring hides the mistake.</div></div>
+    </div>
+
+    <div class="ask" data-lesson="3">
+      <h3>Ask about this lesson</h3>
+      <div class="row"><textarea id="ask-3" placeholder="Example: how would I make a tool that reads outside data safely?"></textarea><div style="display:grid;gap:6px"><button class="btn" data-ask>Ask</button><button class="btn ghost" data-stop hidden>Stop</button></div></div>
+      <div class="answer" id="answer-3"></div>
+      <div class="hint">Answers use your Claude account.</div>
+    </div>
+
+    <div class="foot"><button class="btn ghost" data-prev>Previous</button><button class="btn done" data-done>Mark done, next lesson</button></div>
+  </section>
+
+  <!-- ================= LESSON 4 ================= -->
+  <section class="lesson" data-id="4" data-title="The ReAct loop">
+    <div class="lesson-head">
+      <span class="eyebrow">Lesson 4 · 18 min</span>
+      <h1>The ReAct loop: reason, act, observe, repeat</h1>
+      <p>Take the graph from lesson 2, the tools from lesson 3, add one conditional edge and one cycle. That is the whole agent.</p>
+    </div>
+
+    <div class="goal"><b>Goal.</b> Wire agent → tools → agent with an exit condition and a step budget, and read every line of the graph definition with confidence.</div>
+
+    <h2>The definition</h2>
+    <div class="file">services/reactAgent.ts, bottom</div>
+<pre><span class="k">const</span> shouldContinue = (state: State) =&gt;
+  (state.pendingCalls.length &gt; 0 &amp;&amp; state.steps &lt; MAX_STEPS ? <span class="k">'tools'</span> : END);
+
+<span class="k">export const</span> mindMapReactAgent = <span class="k">new</span> StateGraph(AgentState)
+  .addNode(<span class="k">'agent'</span>, agentNode)
+  .addNode(<span class="k">'tools'</span>, toolsNode)
+  .addEdge(START, <span class="k">'agent'</span>)
+  .addConditionalEdges(<span class="k">'agent'</span>, shouldContinue, { tools: <span class="k">'tools'</span>, [END]: END })
+  .addEdge(<span class="k">'tools'</span>, <span class="k">'agent'</span>)     <span class="c">// the cycle</span>
+  .compile();</pre>
+
+    <p>Read <code>shouldContinue</code> aloud: "if the model asked for tools and we have budget, run tools; otherwise stop." That one function is the difference between an agent and a pipeline. ReAct is a name for exactly this shape: <b>Re</b>ason (agent node), <b>Act</b> (tools node), observe (the function responses in history), repeat.</p>
+
+    <h2>The agent node</h2>
+    <p>Two responsibilities: call the model with everything so far, and translate the answer into either tool calls or "done".</p>
+<pre><span class="k">async function</span> agentNode(state: State) {
+  <span class="k">if</span> (!apiKey) { ... }                                         <span class="c">// demo planner, lesson 5</span>
+  <span class="k">const</span> history = state.history.length ? state.history : [{ role: <span class="k">'user'</span>, parts: [{ text: `Build a mind map about: "${state.topic}".` }] }];
+  <span class="k">const</span> response = <span class="k">await</span> ai.models.generateContent({
+    model: MODEL, contents: history,
+    config: { systemInstruction, tools: [{ functionDeclarations }] },
+  });
+  <span class="k">const</span> calls = (response.functionCalls ?? []).map(c =&gt; ({ name: c.name, args: c.args ?? {} }));
+  <span class="k">const</span> thought = response.text?.trim();                       <span class="c">// the model's own words, when it wrote any</span>
+  <span class="k">return</span> {
+    history: [...(state.history.length ? [] : history), ...(modelContent ? [modelContent] : [])],
+    pendingCalls: calls,                                     <span class="c">// empty array = the model chose to stop</span>
+    log: [thought ? `Reason: ${thought}` : calls.length ? `Reason: calling ${calls.map(describe).join(<span class="k">', '</span>)}` : <span class="k">'Reason: done'</span>],
+  };
+}</pre>
+
+    <h2>The tools node</h2>
+<pre><span class="k">function</span> toolsNode(state: State) {
+  <span class="k">let</span> nodes = state.nodes, edges = state.edges;
+  <span class="k">const</span> responses = [], log = [];
+  <span class="k">for</span> (<span class="k">const</span> call <span class="k">of</span> state.pendingCalls) {
+    <span class="k">const</span> outcome = runTool(call, { ...state, nodes, edges });
+    nodes = outcome.nodes; edges = outcome.edges;
+    log.push(`Act: ${describe(call)} -&gt; ${outcome.result.split(<span class="k">'\n'</span>)[0]}`);
+    responses.push({ role: <span class="k">'user'</span>, parts: [{ functionResponse: { name: call.name, response: { result: outcome.result } } }] });
+  }
+  <span class="k">return</span> { nodes, edges, history: apiKey ? responses : [], log, pendingCalls: [], steps: state.steps + 1 };
+}</pre>
+
+    <h2>Guardrails, and why each exists</h2>
+    <div class="tablewrap"><table>
+      <tr><th>Guard</th><th>Where</th><th>Failure it prevents</th></tr>
+      <tr><td>Step budget <code>MAX_STEPS = 10</code></td><td><code>shouldContinue</code></td><td>An endless loop that bills forever</td></tr>
+      <tr><td>"Never call inspect_map twice in a row"</td><td>system instruction</td><td>Reading without acting, the most common agent stall</td></tr>
+      <tr><td>"Do not add more than 5 branches"</td><td>system instruction</td><td>A map that grows past what the canvas can lay out</td></tr>
+      <tr><td>Tool errors return text, never throw</td><td><code>runTool</code></td><td>One bad label ending the whole run</td></tr>
+      <tr><td>History always starts with a user turn</td><td><code>agentNode</code></td><td>API rejects a conversation that starts with a model turn</td></tr>
+    </table></div>
+
+    <div class="note">Prompt rules are soft. Code rules are hard. The step budget is code because it protects money. The inspect rule is prompt because a violation only costs one round.</div>
+
+    <div class="try">
+      <h3>Try it</h3>
+      <ol class="steps">
+        <li>Set <code>MAX_STEPS = 2</code>. Generate. The map stops after the branches, and the pill says nothing about failure. Decide whether that silence is acceptable. Then restore 10.</li>
+        <li>Remove the <code>[END]: END</code> mapping. Read the error LangGraph throws. It is telling you a conditional edge must name every outcome.</li>
+        <li>Move the "no more than 5 branches" rule from the prompt into <code>runTool</code> as a hard cap. Which version would you ship? Why?</li>
+      </ol>
+    </div>
+
+    <div class="quiz">
+      <div class="q" data-answer="1"><p>What ends the loop when the model is satisfied?</p><div class="opts"><button>The step budget</button><button>A response with no function calls</button><button>A "done" tool</button></div><div class="why" hidden>No function calls. <code>pendingCalls</code> is empty, <code>shouldContinue</code> returns END. The budget is the backstop, not the normal exit.</div></div>
+      <div class="q" data-answer="2"><p>Which of these makes a LangGraph graph an agent rather than a pipeline?</p><div class="opts"><button>Using streaming</button><button>Having a state object</button><button>A conditional edge that can loop back</button></div><div class="why" hidden>The cycle. Pipelines have state and can stream too. Only the loop lets the model decide how many steps to take.</div></div>
+      <div class="q" data-answer="0"><p>Why does the step budget live in code instead of the prompt?</p><div class="opts"><button>It guards spend, and prompts can be ignored</button><button>Prompts cannot count</button><button>LangGraph requires it</button></div><div class="why" hidden>Anything that protects money or safety must be enforced where the model cannot override it.</div></div>
+    </div>
+
+    <div class="ask" data-lesson="4">
+      <h3>Ask about this lesson</h3>
+      <div class="row"><textarea id="ask-4" placeholder="Example: how is this different from createReactAgent in LangGraph?"></textarea><div style="display:grid;gap:6px"><button class="btn" data-ask>Ask</button><button class="btn ghost" data-stop hidden>Stop</button></div></div>
+      <div class="answer" id="answer-4"></div>
+      <div class="hint">Answers use your Claude account.</div>
+    </div>
+
+    <div class="foot"><button class="btn ghost" data-prev>Previous</button><button class="btn done" data-done>Mark done, next lesson</button></div>
+  </section>
+
+  <!-- ================= LESSON 5 ================= -->
+  <section class="lesson" data-id="5" data-title="Demo mode">
+    <div class="lesson-head">
+      <span class="eyebrow">Lesson 5 · 10 min</span>
+      <h1>Demo mode: the same loop without a key</h1>
+      <p>A public demo cannot ship an API key. The answer is not to fake the output. It is to fake the decision-maker and keep everything else real.</p>
+    </div>
+
+    <div class="goal"><b>Goal.</b> Understand the scripted planner and why it runs through the identical graph, tools, and reducers as the live model.</div>
+
+    <h2>Swap the brain, keep the body</h2>
+    <p>The agent node has one branch at the top. With no key, a deterministic function decides which tool to call from the state. Everything downstream, the tools node, the history, the streaming, the canvas, does not know the difference.</p>
+    <div class="file">services/reactAgent.ts</div>
+<pre><span class="k">const</span> scriptedPlanner = (state: State): ToolCall[] =&gt; {
+  <span class="k">const</span> root = state.nodes.find(n =&gt; n.data.isRoot);
+  <span class="k">if</span> (state.steps === 0) <span class="k">return</span> [{ name: <span class="k">'inspect_map'</span>, args: {} }];          <span class="c">// look first</span>
+  <span class="k">if</span> (!root) {
+    <span class="k">const</span> draft = demoDraft(state.topic);                                   <span class="c">// curated or generic branches</span>
+    <span class="k">return</span> [{ name: <span class="k">'add_branches'</span>, args: { root_label: draft.rootLabel, labels: draft.branches } }];
+  }
+  <span class="k">const</span> branches = state.edges.filter(e =&gt; e.source === root.id).map(...);   <span class="c">// the root's children</span>
+  <span class="k">const</span> thin = branches.find(b =&gt; !state.edges.some(e =&gt; e.source === b.id)); <span class="c">// a branch with no children</span>
+  <span class="k">if</span> (thin) <span class="k">return</span> [{ name: <span class="k">'expand'</span>, args: { branch_label: thin.data.label, subtopics: ... } }];
+  <span class="k">return</span> [];                                                                <span class="c">// nothing thin left: done</span>
+};</pre>
+
+    <p>Read the shape: it is the same policy the prompt asks the model to follow. Inspect, draft, expand every thin branch, stop. When you later compare live runs against demo runs, differences point at the model, not at your plumbing.</p>
+
+    <h2>Curated content beats lorem</h2>
+    <p><code>demoContent.ts</code> holds four hand-written maps (SEO Visibility, Lateral Design Processes, Engineering, Design and Art, and Pixel Colour Change via Sound Waves) with keyword matching, plus a generic fallback. Demo content is design work. A visitor judges the product by the first map they see.</p>
+
+    <div class="trap"><b>Trap.</b> The demo planner adds a 400 ms pause per step so the loop is visible. Never leave a pause like that in the live path; there the model's latency is the pacing.</div>
+
+    <div class="try">
+      <h3>Try it</h3>
+      <ol class="steps">
+        <li>Add a fifth curated map about something you care about. Give it four branches and three sub-topics each. Add keywords. Generate it by typing one of the keywords.</li>
+        <li>Make the planner call <code>rename</code> once before finishing, turning the root label into title case. The live model may do this on its own; now demo mode does too.</li>
+      </ol>
+    </div>
+
+    <div class="quiz">
+      <div class="q" data-answer="1"><p>What does demo mode replace?</p><div class="opts"><button>The tools node</button><button>The decision inside the agent node</button><button>The whole graph</button></div><div class="why" hidden>Only the decision. The graph, tools, reducers, and streaming are shared, which is what makes the demo an honest demo.</div></div>
+    </div>
+
+    <div class="ask" data-lesson="5">
+      <h3>Ask about this lesson</h3>
+      <div class="row"><textarea id="ask-5" placeholder="Example: how would I proxy the key through a server instead?"></textarea><div style="display:grid;gap:6px"><button class="btn" data-ask>Ask</button><button class="btn ghost" data-stop hidden>Stop</button></div></div>
+      <div class="answer" id="answer-5"></div>
+      <div class="hint">Answers use your Claude account.</div>
+    </div>
+
+    <div class="foot"><button class="btn ghost" data-prev>Previous</button><button class="btn done" data-done>Mark done, next lesson</button></div>
+  </section>
+
+  <!-- ================= LESSON 6 ================= -->
+  <section class="lesson" data-id="6" data-title="Canvas">
+    <div class="lesson-head">
+      <span class="eyebrow">Lesson 6 · 15 min</span>
+      <h1>Canvas: streaming into React Flow</h1>
+      <p>This is the design-engineering half. The agent produces state; the canvas has to make it feel alive, legible, and yours to edit.</p>
+    </div>
+
+    <div class="goal"><b>Goal.</b> Trace one graph step from the stream to pixels, then see how extend-selection, colour prediction, and Smart Align reuse the same primitives.</div>
+
+    <h2>From chunk to pixels</h2>
+    <div class="file">components/MindMap.tsx</div>
+<pre><span class="k">const</span> stream = <span class="k">await</span> mindMapReactAgent.stream({ topic });
+<span class="k">for await</span> (<span class="k">const</span> chunk <span class="k">of</span> stream) {
+  <span class="k">for</span> (<span class="k">const</span> [, output] <span class="k">of</span> Object.entries(chunk)) {
+    <span class="k">const</span> latest = output.log?.[output.log.length - 1];
+    <span class="k">if</span> (latest) window.dispatchEvent(<span class="k">new</span> CustomEvent(<span class="k">'mindmap:agent-progress'</span>, { detail: { progress: latest } }));
+    <span class="c">// last write of an id wins, which is what a rename needs</span>
+    <span class="k">if</span> (output.nodes) setNodes(nds =&gt; [...<span class="k">new</span> Map([...nds, ...output.nodes].map(n =&gt; [n.id, n])).values()]);
+    <span class="k">if</span> (output.edges) setEdges(eds =&gt; [...<span class="k">new</span> Map([...eds, ...output.edges].map(e =&gt; [e.id, e])).values()]);
+    setTimeout(() =&gt; fitView({ padding: 0.2, duration: 800 }), 50);
+  }
+}</pre>
+    <p>Components talk through <code>window</code> events (<code>mindmap:agent-progress</code>, <code>mindmap:selection</code>, <code>mindmap:save-map</code>). It is a deliberate trade: no shared store, and any component can listen. It stops scaling around ten event names. MindFlow has eight.</p>
+
+    <h2>Three features, one pattern</h2>
+    <div class="cards">
+      <div class="card"><b>Extend a selection</b><span>React Flow's <code>onSelectionChange</code> broadcasts the selected node. The composer flips to "Extend". Generate calls <code>generateSubTopics(label, guidance)</code> and stacks children under existing ones.</span></div>
+      <div class="card"><b>Predicted colour</b><span><code>predictColor(label, index)</code> maps keywords to a palette. Branch nodes get it, children and edges inherit it, the minimap reads it. Rendered as a 3px left border and a 7% tint.</span></div>
+      <div class="card"><b>Smart Align</b><span><code>smartAlign(nodes, edges)</code> is a tidy-tree: subtree height from measured node sizes, parent centred on its children. Runs after every generation and on the button.</span></div>
+    </div>
+
+    <h2>Smart Align, the core</h2>
+    <div class="file">services/layout.ts</div>
+<pre><span class="k">const</span> measure = (id) =&gt; {                          <span class="c">// height of a subtree</span>
+  <span class="k">const</span> kids = children.get(id) ?? [];
+  <span class="k">const</span> stacked = kids.reduce((sum, kid) =&gt; sum + measure(kid), 0) + rowGap * Math.max(0, kids.length - 1);
+  <span class="k">return</span> Math.max(nodeHeight(byId.get(id)), stacked);
+};
+<span class="k">const</span> place = (id, x, top) =&gt; {                    <span class="c">// parent centred on its children</span>
+  positions.set(id, { x, y: top + (measure(id) - nodeHeight(node)) / 2 });
+  <span class="k">let</span> cursor = top;
+  <span class="k">for</span> (<span class="k">const</span> kid <span class="k">of</span> children.get(id) ?? []) { place(kid, x + nodeWidth(node) + columnGap, cursor); cursor += measure(kid) + rowGap; }
+};</pre>
+    <div class="note">Measured sizes (<code>node.width</code>, <code>node.height</code>) come from React Flow after the first render. That is why the layout runs in a <code>setTimeout</code> after nodes exist, not in the same tick they were added.</div>
+
+    <div class="try">
+      <h3>Try it</h3>
+      <ol class="steps">
+        <li>Change <code>columnGap</code> to 40 and <code>rowGap</code> to 8. Click Smart Align. Feel why the defaults are 120 and 28.</li>
+        <li>Add a keyword pair to <code>colorHints</code> for your own domain, then generate a map that uses it.</li>
+        <li>Double-click a node, type markdown with a bullet list, press Escape. Then Smart Align: the taller node pushes its siblings apart because the layout measures real height.</li>
+      </ol>
+    </div>
+
+    <div class="quiz">
+      <div class="q" data-answer="2"><p>Why does the canvas dedupe nodes by id on every chunk?</p><div class="opts"><button>React Flow requires it</button><button>The model repeats itself</button><button>The tools step returns the full map each time and a rename must replace, not duplicate</button></div><div class="why" hidden>Full map per step plus a Map keyed by id means the latest version of a node wins, which is what a rename needs.</div></div>
+    </div>
+
+    <div class="ask" data-lesson="6">
+      <h3>Ask about this lesson</h3>
+      <div class="row"><textarea id="ask-6" placeholder="Example: how would I animate nodes appearing one by one?"></textarea><div style="display:grid;gap:6px"><button class="btn" data-ask>Ask</button><button class="btn ghost" data-stop hidden>Stop</button></div></div>
+      <div class="answer" id="answer-6"></div>
+      <div class="hint">Answers use your Claude account.</div>
+    </div>
+
+    <div class="foot"><button class="btn ghost" data-prev>Previous</button><button class="btn done" data-done>Mark done, next lesson</button></div>
+  </section>
+
+  <!-- ================= LESSON 7 ================= -->
+  <section class="lesson" data-id="7" data-title="Ship and defend">
+    <div class="lesson-head">
+      <span class="eyebrow">Lesson 7 · 10 min</span>
+      <h1>Ship it, prove it, and say it right</h1>
+      <p>The last skill is honesty under questioning. Know what you built, what you did not, and what you would do next.</p>
+    </div>
+
+    <div class="goal"><b>Goal.</b> Reproduce the deploy, verify the live build, and rehearse five interview answers.</div>
+
+    <h2>Ship</h2>
+<pre>cd ~/p/demos/mindflow-ai
+npx tsc --noEmit -p .            <span class="c"># must be clean</span>
+npm run build                    <span class="c"># dist/</span>
+vercel --prod --yes              <span class="c"># project: mindflow-ai, alias mindflow-ai-sepia.vercel.app</span>
+curl -s https://mindflow-ai-sepia.vercel.app | grep -o 'index-[A-Za-z0-9_-]*\.js'   <span class="c"># bundle name</span></pre>
+    <p>Then open the live URL, generate a map, and watch the pill alternate Reason and Act. If it does not, the bundle you shipped is not the one you built. Check the hash.</p>
+
+    <h2>Say it right</h2>
+    <div class="tablewrap"><table>
+      <tr><th>They ask</th><th>You say</th></tr>
+      <tr><td>Is this an agent?</td><td>Yes: a ReAct loop in LangGraph. An agent node reasons and picks tools, a tools node acts on the map, a conditional edge loops until the model stops calling tools or hits a step budget of 10.</td></tr>
+      <tr><td>What were the tools?</td><td>Four: inspect_map, add_branches, expand, rename. The map is the tool surface. Results are short summaries so every round stays cheap.</td></tr>
+      <tr><td>How does the demo work without a key?</td><td>A scripted planner replaces only the decision inside the agent node. Same graph, tools, reducers, and streaming. Keys never ship in a browser bundle.</td></tr>
+      <tr><td>What would you change?</td><td>Move the model call behind a small server so the key is private and rate-limited. Add a merge tool. Persist maps server-side instead of localStorage.</td></tr>
+      <tr><td>What was the hardest part?</td><td>Layout. Streaming nodes in arbitrary order fought the canvas until Smart Align used measured node sizes and ran after each step.</td></tr>
+    </table></div>
+
+    <div class="trap"><b>Do not say</b> "it uses AI to build mind maps". Say what loops, what decides, what is bounded. Specific beats impressive.</div>
+
+    <div class="try">
+      <h3>Try it</h3>
+      <ol class="steps">
+        <li>Record yourself answering the five questions in under 90 seconds total. Listen for filler.</li>
+        <li>Publish the source: the commands are in <code>~/Downloads/github-profile-fixes.md</code>, section 5.</li>
+        <li>Add one line to the resume: "Built a ReAct mind-map agent in LangGraph: tool calling, step budget, streamed reasoning".</li>
+      </ol>
+    </div>
+
+    <div class="quiz">
+      <div class="q" data-answer="0"><p>The live site does not show Reason and Act lines. First check?</p><div class="opts"><button>Compare the deployed bundle hash with the local build</button><button>Rewrite the agent</button><button>Add more logging</button></div><div class="why" hidden>Verify you shipped what you built before touching code. It takes ten seconds.</div></div>
+    </div>
+
+    <div class="ask" data-lesson="7">
+      <h3>Ask about this lesson</h3>
+      <div class="row"><textarea id="ask-7" placeholder="Example: quiz me on the whole course"></textarea><div style="display:grid;gap:6px"><button class="btn" data-ask>Ask</button><button class="btn ghost" data-stop hidden>Stop</button></div></div>
+      <div class="answer" id="answer-7"></div>
+      <div class="hint">Answers use your Claude account.</div>
+    </div>
+
+    <div class="foot"><button class="btn ghost" data-prev>Previous</button><button class="btn done" data-done>Mark course complete</button></div>
+  </section>
+
+  </main>
+</div>
+
+<script>
+(function () {
+  const lessons = Array.from(document.querySelectorAll('.lesson'));
+  const nav = document.getElementById('nav');
+  const jump = document.getElementById('jump');
+  const store = {
+    read() { try { return JSON.parse(localStorage.getItem('mindflow-course') || '{}'); } catch { return {}; } },
+    write(v) { try { localStorage.setItem('mindflow-course', JSON.stringify(v)); } catch {} },
+  };
+  let state = store.read();
+  state.done = state.done || {};
+
+  lessons.forEach((section) => {
+    const id = section.dataset.id, title = section.dataset.title;
+    const li = document.createElement('li');
+    li.innerHTML = `<a href="#lesson-${id}" data-go="${id}"><span class="tick"></span><span>${id} · ${title}</span></a>`;
+    nav.appendChild(li);
+    const opt = document.createElement('option');
+    opt.value = id; opt.textContent = `${id} · ${title}`;
+    jump.appendChild(opt);
+  });
+
+  function show(id) {
+    lessons.forEach((s) => s.classList.toggle('active', s.dataset.id === String(id)));
+    nav.querySelectorAll('a').forEach((a) => a.classList.toggle('active', a.dataset.go === String(id)));
+    jump.value = String(id);
+    state.current = String(id); store.write(state);
+    window.scrollTo({ top: 0 });
+    paintProgress();
+  }
+  function paintProgress() {
+    const doneCount = Object.keys(state.done).length;
+    document.getElementById('progress-label').textContent = `${doneCount} of ${lessons.length} done`;
+    document.getElementById('progress-bar').style.width = `${(doneCount / lessons.length) * 100}%`;
+    nav.querySelectorAll('a').forEach((a) => a.classList.toggle('done', !!state.done[a.dataset.go]));
+  }
+
+  nav.addEventListener('click', (e) => { const a = e.target.closest('a[data-go]'); if (!a) return; e.preventDefault(); show(a.dataset.go); });
+  jump.addEventListener('change', () => show(jump.value));
+  document.querySelectorAll('[data-done]').forEach((btn) => btn.addEventListener('click', () => {
+    const id = btn.closest('.lesson').dataset.id;
+    state.done[id] = true; store.write(state);
+    const next = Math.min(Number(id) + 1, lessons.length - 1);
+    show(next);
+  }));
+  document.querySelectorAll('[data-prev]').forEach((btn) => btn.addEventListener('click', () => {
+    const id = Number(btn.closest('.lesson').dataset.id);
+    show(Math.max(id - 1, 0));
+  }));
+
+  document.querySelectorAll('.q').forEach((q) => {
+    const answer = Number(q.dataset.answer);
+    const buttons = Array.from(q.querySelectorAll('.opts button'));
+    buttons.forEach((b, i) => b.addEventListener('click', () => {
+      buttons.forEach((x) => x.classList.remove('right', 'wrong'));
+      b.classList.add(i === answer ? 'right' : 'wrong');
+      if (i !== answer) buttons[answer].classList.add('right');
+      q.querySelector('.why').hidden = false;
+    }));
+  });
+
+  const hash = location.hash.replace('#lesson-', '');
+  show(hash !== '' && lessons.some((s) => s.dataset.id === hash) ? hash : (state.current || '0'));
+
+  // ---------- Ask about this lesson (Claude, via the sample capability) ----------
+  const RULES = 'You are a patient senior engineer tutoring a design engineer who is learning LangGraph and ReAct agents by studying a project called MindFlow. Answer from the lesson text below first; if the answer is not in it, say so and answer from general knowledge briefly. Use plain words, define any term of art in brackets the first time, keep answers under 200 words, and prefer a small code example in TypeScript when it helps. No em dashes.';
+  const copyFor = {
+    not_granted: 'Asking is turned off for this page.', sampling_disabled: 'Claude is not available on this account.', rate_limited: 'Too many questions right now. Try again in a minute.',
+    session_expired: 'Sign in again to ask.', refused: 'Claude declined that question. Try rephrasing.', empty_completion: 'No answer came back. Ask a narrower question.',
+    prompt_too_large: 'That is too much text. Shorten the question.', upstream_error: 'Connection dropped. Try again.',
+  };
+  const hideAll = () => document.querySelectorAll('.ask').forEach((box) => box.dataset.state = 'off');
+
+  (async () => {
+    let sample = null;
+    try { sample = await window.claude?.use?.('sample'); } catch { sample = null; }
+    if (!sample) { hideAll(); return; }
+
+    document.querySelectorAll('.ask').forEach((box) => {
+      const id = box.dataset.lesson;
+      const section = box.closest('.lesson');
+      const input = box.querySelector('textarea');
+      const askBtn = box.querySelector('[data-ask]');
+      const stopBtn = box.querySelector('[data-stop]');
+      const out = box.querySelector('.answer');
+      let ctl = null;
+
+      stopBtn.addEventListener('click', () => ctl?.abort());
+      askBtn.addEventListener('click', async () => {
+        const question = input.value.trim();
+        if (!question) { input.focus(); return; }
+        const lessonText = section.innerText.replace(/\s+\n/g, '\n').slice(0, 9000);
+        ctl = new AbortController();
+        askBtn.disabled = true; stopBtn.hidden = false;
+        out.textContent = 'Thinking...';
+        try {
+          const { truncated } = await sample(
+            [{ role: 'user', content: RULES + '\n\nLESSON TEXT:\n' + lessonText }, { role: 'user', content: 'Question: ' + question }],
+            { cache: false, signal: ctl.signal, onText: ({ text }) => { out.textContent = text; } },
+          );
+          if (truncated) out.textContent += '\n\n[Cut short. Ask for less at a time.]';
+        } catch (e) {
+          if (e && e.code === 'cancelled') { out.textContent = e.text || ''; }
+          else if (e && (e.code === 'not_granted' || e.code === 'sampling_disabled' || e.code === 'not_declared' || e.code === 'capability_disabled')) { hideAll(); }
+          else { out.textContent = (e && e.text ? e.text + '\n\n' : '') + (copyFor[e && e.code] || copyFor.upstream_error); }
+        } finally {
+          askBtn.disabled = false; stopBtn.hidden = true;
+        }
+      });
+    });
+  })();
+})();
+</script>

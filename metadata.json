@@ -1,0 +1,5 @@
+{
+  "name": "MindFlow AI",
+  "description": "A collaborative-style mind mapping application featuring React Flow. Create nodes via right-click or hover interactions, and expand ideas instantly using Gemini AI.",
+  "requestFramePermissions": []
+}
