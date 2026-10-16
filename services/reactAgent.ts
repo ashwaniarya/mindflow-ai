@@ -1,12 +1,9 @@
 import { StateGraph, START, END, Annotation } from "@langchain/langgraph";
-import { GoogleGenAI, Type, type Content, type FunctionDeclaration } from "@google/genai";
+import { aiEnabled, complete, type ChatMessage } from "./aiClient";
 import { Edge } from "reactflow";
 import { MindMapNode } from "../types";
 import { demoDraft, demoExpansions, predictColor } from "./demoContent";
 
-const apiKey = process.env.API_KEY || '';
-const ai = new GoogleGenAI({ apiKey });
-const MODEL = "gemini-3-flash-preview";
 export const MAX_STEPS = 10;
 
 let idCounter = 5000;
@@ -21,8 +18,8 @@ export const AgentState = Annotation.Root({
   topic: Annotation<string>(),
   nodes: Annotation<MindMapNode[]>({ reducer: (_state, update) => update, default: () => [] }),
   edges: Annotation<Edge[]>({ reducer: (_state, update) => update, default: () => [] }),
-  history: Annotation<Content[]>({ reducer: (state, update) => state.concat(update), default: () => [] }),
-  pendingCalls: Annotation<ToolCall[]>({ reducer: (_state, update) => update, default: () => [] }),
+  history: Annotation<ChatMessage[]>({ reducer: (state, update) => state.concat(update), default: () => [] }),
+  pendingCalls: Annotation<(ToolCall & { id?: string })[]>({ reducer: (_state, update) => update, default: () => [] }),
   log: Annotation<string[]>({ reducer: (state, update) => state.concat(update), default: () => [] }),
   steps: Annotation<number>({ reducer: (_state, update) => update, default: () => 0 }),
 });
@@ -98,11 +95,14 @@ const runTool = (call: ToolCall, state: State): { nodes: MindMapNode[]; edges: E
   }
 };
 
-const functionDeclarations: FunctionDeclaration[] = [
-  { name: 'inspect_map', description: 'Look at the current mind map: root, branches, and how many sub-topics each branch has.', parameters: { type: Type.OBJECT, properties: {} } },
-  { name: 'add_branches', description: 'Add top-level branches under the root. Creates the root if the map is empty.', parameters: { type: Type.OBJECT, properties: { root_label: { type: Type.STRING, description: 'Short markdown label for the root, only when the map is empty' }, labels: { type: Type.ARRAY, items: { type: Type.STRING }, description: '3 to 5 short branch labels, markdown allowed' } }, required: ['labels'] } },
-  { name: 'expand', description: 'Add 2 to 4 short sub-topics under an existing branch.', parameters: { type: Type.OBJECT, properties: { branch_label: { type: Type.STRING }, subtopics: { type: Type.ARRAY, items: { type: Type.STRING } } }, required: ['branch_label', 'subtopics'] } },
-  { name: 'rename', description: 'Rename a node to something sharper.', parameters: { type: Type.OBJECT, properties: { label: { type: Type.STRING }, new_label: { type: Type.STRING } }, required: ['label', 'new_label'] } },
+const fn = (name: string, description: string, properties: Record<string, unknown>, required: string[] = []) =>
+  ({ type: 'function', function: { name, description, parameters: { type: 'object', properties, required } } });
+const strList = { type: 'array', items: { type: 'string' } };
+const tools = [
+  fn('inspect_map', 'Look at the current mind map: root, branches, and how many sub-topics each branch has.', {}),
+  fn('add_branches', 'Add top-level branches under the root. Creates the root if the map is empty.', { root_label: { type: 'string', description: 'Short markdown label for the root, only when the map is empty' }, labels: { ...strList, description: '3 to 5 short branch labels, markdown allowed' } }, ['labels']),
+  fn('expand', 'Add 2 to 4 short sub-topics under an existing branch.', { branch_label: { type: 'string' }, subtopics: strList }, ['branch_label', 'subtopics']),
+  fn('rename', 'Rename a node to something sharper.', { label: { type: 'string' }, new_label: { type: 'string' } }, ['label', 'new_label']),
 ];
 
 const systemInstruction = `You are a mind-map planner working in a ReAct loop. You can only change the map through tools.
@@ -137,23 +137,25 @@ const describe = (call: ToolCall) => {
 };
 
 async function agentNode(state: State) {
-  if (!apiKey) {
+  if (!aiEnabled) {
     await new Promise((resolve) => setTimeout(resolve, 400));
     const calls = scriptedPlanner(state);
     return { pendingCalls: calls, log: calls.length ? [`Reason: ${calls[0].name === 'inspect_map' ? 'I should look at the map first' : calls[0].name === 'add_branches' ? 'the map is empty, draft the branches' : 'a branch has no detail yet'}`] : ['Reason: every branch has detail, done'] };
   }
 
-  const history: Content[] = state.history.length ? state.history : [{ role: 'user', parts: [{ text: `Build a mind map about: "${state.topic}".` }] }];
-  const response = await ai.models.generateContent({
-    model: MODEL,
-    contents: history,
-    config: { systemInstruction, tools: [{ functionDeclarations }] },
+  const history: ChatMessage[] = state.history.length ? state.history : [
+    { role: 'system', content: systemInstruction },
+    { role: 'user', content: `Build a mind map about: "${state.topic}".` },
+  ];
+  const { message } = await complete({ messages: history, tools });
+  const calls = (message.tool_calls ?? []).map((call) => {
+    let args: Record<string, unknown> = {};
+    try { args = JSON.parse(call.function.arguments || '{}'); } catch { /* keep empty */ }
+    return { id: call.id, name: call.function.name, args };
   });
-  const modelContent = response.candidates?.[0]?.content;
-  const calls: ToolCall[] = (response.functionCalls ?? []).map((call) => ({ name: call.name ?? 'unknown', args: (call.args ?? {}) as Record<string, unknown> }));
-  const thought = response.text?.trim();
+  const thought = message.content?.trim();
   return {
-    history: [...(state.history.length ? [] : history), ...(modelContent ? [modelContent] : [])],
+    history: [...(state.history.length ? [] : history), message],
     pendingCalls: calls,
     log: [thought ? `Reason: ${thought}` : calls.length ? `Reason: calling ${calls.map(describe).join(', ')}` : 'Reason: done'],
   };
@@ -162,7 +164,7 @@ async function agentNode(state: State) {
 function toolsNode(state: State) {
   let nodes = state.nodes;
   let edges = state.edges;
-  const responses: Content[] = [];
+  const responses: ChatMessage[] = [];
   const log: string[] = [];
 
   for (const call of state.pendingCalls) {
@@ -170,10 +172,10 @@ function toolsNode(state: State) {
     nodes = outcome.nodes;
     edges = outcome.edges;
     log.push(`Act: ${describe(call)} -> ${outcome.result.split('\n')[0]}`);
-    responses.push({ role: 'user', parts: [{ functionResponse: { name: call.name, response: { result: outcome.result } } }] });
+    responses.push({ role: 'tool', tool_call_id: call.id, content: outcome.result });
   }
 
-  return { nodes, edges, history: apiKey ? responses : [], log, pendingCalls: [], steps: state.steps + 1 };
+  return { nodes, edges, history: aiEnabled ? responses : [], log, pendingCalls: [], steps: state.steps + 1 };
 }
 
 const shouldContinue = (state: State) => (state.pendingCalls.length > 0 && state.steps < MAX_STEPS ? 'tools' : END);
