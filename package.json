@@ -9,7 +9,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@google/genai": "^1.41.0",
     "@langchain/core": "^1.2.2",
     "@langchain/langgraph": "^1.4.7",
     "@tailwindcss/vite": "^4.2.1",
