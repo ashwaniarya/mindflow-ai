@@ -16,7 +16,7 @@ import ReactFlow, {
 } from 'reactflow';
 import CustomNode from './CustomNode';
 import { ContextMenu } from './ContextMenu';
-import { generateSubTopics } from '../services/geminiService';
+import { generateSubTopics } from '../services/aiService';
 import { mindMapReactAgent } from '../services/reactAgent';
 import { MindMapNode, AppState, SavedMap } from '../types';
 import { demoSavedMaps } from '../services/demoContent';

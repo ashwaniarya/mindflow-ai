@@ -12,7 +12,7 @@ A mind-map canvas where an agent builds the map with you. Right-click to add a n
 
 ## Stack
 
-React 19, TypeScript, React Flow, LangGraph, Google Gemini (`gemini-3-flash-preview`), Tailwind CSS 4, Vite 6.
+React 19, TypeScript, React Flow, LangGraph, xAI Grok via the MindFlow AI session service (`server/`), Tailwind CSS 4, Vite 6.
 
 ## Run locally
 
@@ -25,17 +25,22 @@ npm run dev
 
 Without an API key the app runs in **demo mode**: the agent replays scripted content from `services/demoContent.ts`, so the full interaction works offline.
 
-To run the real agent, set a Gemini API key in `.env.local`:
+To run the real agent, point the app at the session service in `.env.local`:
 
 ```
-API_KEY=your-gemini-api-key
+VITE_AI_SERVICE_URL=https://session-service-production-5207.up.railway.app
+VITE_AI_APP_KEY=your-per-app-key
 ```
+
+The xAI key never reaches the browser; it lives only on the service. See `server/README.md`.
 
 ## Layout
 
 ```
 services/reactAgent.ts    LangGraph agent, tool declarations, state graph
-services/geminiService.ts Gemini client calls
+services/aiClient.ts      session service client (sessions, streaming, tool completions)
+services/aiService.ts     sub-topic generation
+server/                   AI session service (Node, Postgres, xAI) deployed on Railway
 services/demoContent.ts   scripted fallback for demo mode
 services/layout.ts        node placement
 components/MindMap.tsx    React Flow canvas
